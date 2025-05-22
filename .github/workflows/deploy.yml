@@ -1,4 +1,4 @@
-name: Nest.js CI/CD
+name: Deploy NestJS to VPS
 
 on:
   push:
@@ -6,36 +6,26 @@ on:
       - main
 
 jobs:
-  build:
-    runs-on: self-hosted
-
-    strategy:
-      matrix:
-        node-version: [14.x]
+  deploy:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Check out the repository
+      - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          node-version: ${{ matrix.node-version }}
+          ssh-private-key: ${{ secrets.VPS_KEY }}
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build the project
-        run: npm run build
-
-      - name: Install PM2 globally
-        run: npm install -g pm2
-
-      - name: Stop current PM2 process by name
-        run: pm2 stop nestjs-app || true
-
-      - name: Start new PM2 process with name
-        run: pm2 start dist/main.js --name nestjs-app
-
-      - name: Save PM2 process list
-        run: pm2 save
+      - name: SSH and deploy to VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            cd /root/NEST-CICD-PROJECT/nest-cicd-project
+            git pull origin main
+            npm install
+            npm run build
+            pm2 delete nestjs-app || true
+            pm2 start dist/main.js --name nestjs-app
+            pm2 save
+          EOF
